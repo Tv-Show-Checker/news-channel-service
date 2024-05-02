@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  news-service-db:
+    image: postgres:13
+    container_name: tv-show-checker-news-service-db
+    hostname: news-service-db
+    ports:
+      - "5403:5432"
+    environment:
+      POSTGRES_USER: $DB_USER
+      POSTGRES_PASSWORD: $DB_PASSWORD
+      POSTGRES_DB: $DB_NAME
+    restart: always
+    volumes:
+      - news-service-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U ${DB_USER} -d ${DB_NAME}'" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  news-service-cache:
+    image: redis:7.2.4
+    container_name: tv-show-checker-news-cache
+    hostname: tv-show-checker-news-cache
+    restart: always
+    command: /bin/sh -c "redis-server --requirepass ${REDIS_PASSWORD}"
+    ports:
+      - "6380:6379"
+
+  news-service-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tv-show-checker-news-service-app
+    image: tv-show-checker-news-service-app:latest
+    depends_on:
+      news-service-cache:
+        condition: service_started
+      news-service-db:
+        condition: service_healthy
+    command: python manage.py runserver 0.0.0.0:8000
+    restart: always
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    networks:
+      - default
+
+volumes:
+  news-service-db:
+
+networks:
+  default:
+    name: tv-show-checker-news-service-net
